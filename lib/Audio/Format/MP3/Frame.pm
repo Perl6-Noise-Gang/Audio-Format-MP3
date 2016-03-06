@@ -1,6 +1,9 @@
 use v6;
 
 class Audio::Format::MP3::Frame {
+    use Util::Bitfield;
+
+    enum Mode <Stereo JointStereo DualChannel Mono>;
 
     my @bitrate =       [
                             [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0],
@@ -27,33 +30,26 @@ class Audio::Format::MP3::Frame {
         ($buf[2] +< 8) +|
         ($buf[3]);
     }
-    sub shift-and(Int $who, Int $many, Int $what ) returns Int {
-	    ($who +> $many) +& $what;
-    }
 
-    sub make-mask(Int $bits, Int $start = 0, Int $word-size = 32) {
-	    (((1 +< $bits) - 1) +< ($word-size - ($bits + $start)));
-    }
-
-    sub extract-bits(Int $value, Int $bits, Int $start = 0, Int $word-size = 32) {
-	    ($value +& make-mask($bits, $start, $word-size)) +> ( $word-size - ( $bits + $start));
+    sub calculate-framesize(Int $samplerate, Int $samples, Int $bitrate, Int $padding) returns Int {
+        $samplerate ?? Int((($samples * $bitrate * 1000)/$samplerate)/8 + $padding) !! 0;
     }
 
     class Header {
         has Int $.syncword;
         has Int $.layer;
         has Int $.version;
-        has Int $.error-protection;
+        has Bool $.error-protection;
         has Int $.bitrate-index;
         has Int $.samplerate-index;
         has Int $.padding;
         has Int $.extension;
-        has Int $.mode;
+        has Mode $.mode;
         has Int $.mode-ext;
-        has Int $.copyright;
-        has Int $.original;
+        has Bool $.copyright;
+        has Bool $.original;
         has Int $.emphasis;
-        has Int $.stereo;
+        has Bool $.stereo;
         has Int $.bitrate;
         has Int $.samplerate;
         has Int $.samples;
@@ -66,23 +62,29 @@ class Audio::Format::MP3::Frame {
 
         multi method new(Int $head) {
             my %a;
-            say $head;
             %a<syncword>            = extract-bits($head,11);
             %a<version>             = (2,0,2,1)[extract-bits($head, 2, 11)];
             %a<layer>               = (0, 3, 2, 1)[extract-bits($head, 2, 13)];
-            %a<error-protection>    = extract-bits($head, 1, 15);
+            %a<error-protection>    = Bool(!extract-bits($head, 1, 15));
             %a<bitrate-index>       = extract-bits($head, 4, 16);
             %a<samplerate-index>    = extract-bits($head, 2, 20);
             %a<padding>             = extract-bits($head, 1, 22);
             %a<extension>           = extract-bits($head, 1, 23);
-            %a<mode>                = extract-bits($head, 2, 24);
+            %a<mode>                = Mode(extract-bits($head, 2, 24));
             %a<mode-ext>            = extract-bits($head, 2, 26);
-            %a<copyright>           = extract-bits($head, 1, 28);
-            %a<original>            = extract-bits($head, 1, 29);
+            %a<copyright>           = Bool(extract-bits($head, 1, 28));
+            %a<original>            = Bool(extract-bits($head, 1, 29));
             %a<emphasis>            = extract-bits($head, 2, 30);
             %a<bitrate>             = @bitrate[%a<version> - 1][%a<layer> - 1][%a<bitrate-index>];
             %a<samplerate>          = @samplerate[%a<version> - 1][%a<samplerate-index>];
+            %a<samples>             = %a<version> ?? 576 !! 1152;
+            %a<framesize>           = calculate-framesize(%a<samplerate>, %a<samples>, %a<bitrate>, %a<padding>);
+            %a<stereo>              = %a<mode> ~~ Stereo | JointStereo | DualChannel;
             samewith(|%a);
+        }
+
+        method is-frame() returns Bool {
+            $.syncword == 0b11111111111 && $.bitrate && $.samplerate;
         }
    }
 }
