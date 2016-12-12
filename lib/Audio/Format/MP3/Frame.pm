@@ -25,7 +25,7 @@ class Audio::Format::MP3::Frame {
                         [ 11025, 8000, 8000, 0 ];
 
     sub bytes-to-int(Blob $buf where  *.elems == 4 ) returns Int {
-	    ($buf[0] +< 24) +|
+        ($buf[0] +< 24) +|
         ($buf[1] +< 16) +|
         ($buf[2] +< 8) +|
         ($buf[3]);
@@ -84,7 +84,7 @@ class Audio::Format::MP3::Frame {
         }
 
         method is-frame() returns Bool {
-            $.syncword == 0b11111111111 && $.bitrate && $.samplerate;
+            so ( $.syncword == 0b11111111111 && $.bitrate && $.samplerate );
         }
    }
 }
