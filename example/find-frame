@@ -1,0 +1,22 @@
+#!/usr/bin/env perl6
+
+use v6.c;
+
+use Audio::Format::MP3::Frame;
+
+sub MAIN(Str $file) {
+    my $handle = $file.IO.open(:bin);
+
+    my $mp3;
+    while my $buf = $handle.read(4) {
+        $mp3 = Audio::Format::MP3::Frame::Header.new($buf);
+        if $mp3.is-frame {
+            last;
+        }
+    }
+
+    say $mp3;
+
+}
+
+# vim: ft=perl6
